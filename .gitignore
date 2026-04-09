@@ -90,4 +90,4 @@ pytype/
 cython_debug/
 # PyCharm
 idea/
-data/api_key.py
+/data/api_key.py
