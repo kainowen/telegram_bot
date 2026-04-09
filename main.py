@@ -1,107 +1,150 @@
-import os
 import json
-from typing import Sequence
-from langchain_ollama import ChatOllama
-from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.messages import BaseMessage, message_to_dict, messages_from_dict
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.output_parsers import StrOutputParser
+import requests
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from collections import defaultdict
 
+#API should be stored in a file names api_key.py in the data folder, inside a var called "api_key"
 import data.api_key
 
-# ================= Custom File-Based Persistence =================
-class FileChatMessageHistory(BaseChatMessageHistory):
-    """Persistent chat history using JSON files. [citation:5]"""
+# ================= CONFIGURATION =================
+TELEGRAM_BOT_TOKEN = data.api_key.api_key # From @BotFather
+OLLAMA_URL = "http://192.168.178.43:11434/api/generate" # Your server's IP
+OLLAMA_MODEL = "llama3.2" # Or any model you have pulled
+# =================================================
 
-    def __init__(self, session_id: str, storage_path: str = "./chat_histories"):
-        self.session_id = session_id
-        self.storage_path = storage_path
-        self.file_path = os.path.join(storage_path, f"{session_id}.json")
-        os.makedirs(storage_path, exist_ok=True)
+# System prompt - defines the bot's personality and behavior
+SYSTEM_PROMPT = """You are a helpful, friendly, and casual and concise AI assistant.
+You provide accurate information and admit when you don't know something. You keep answers breif and easy to understand.
+You keep responses clear and avoid unnecessary fluff."""
 
-    @property
-    def messages(self) -> list[BaseMessage]:
-        """Load messages from file."""
-        try:
-            with open(self.file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return messages_from_dict(data)
-        except FileNotFoundError:
-            return []
+# Store conversation history per user (max messages to remember)
+MAX_HISTORY = 10 # Remembers last 5 exchanges (10 messages total)
+conversation_history = defaultdict(list) # Automatically creates empty lists per user
+# =================================================
 
-    def add_messages(self, messages: Sequence[BaseMessage]) -> None:
-        """Add messages and persist to file."""
-        all_messages = list(self.messages)
-        all_messages.extend(messages)
+def build_prompt(user_id: int, new_message: str) -> str:
+    """Build a complete prompt with system prompt and conversation history"""
+    # Start with system prompt
+    full_prompt = f"<|system|>\n{SYSTEM_PROMPT}\n\n"
 
-        serialized = [message_to_dict(msg) for msg in all_messages]
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump(serialized, f, ensure_ascii=False, indent=2)
+    # Add conversation history
+    full_prompt += "<|history|>\n"
+    for message in conversation_history[user_id]:
+        full_prompt += f"User: {message['user']}\nAssistant: {message['assistant']}\n"
 
-    def clear(self) -> None:
-        """Clear all messages."""
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump([], f)
+    # Add current message
+    full_prompt += f"<|current|>\nUser: {new_message}\nAssistant: "
 
-# ================= Bot Configuration =================
-TELEGRAM_BOT_TOKEN = data.api_key.api_key
-OLLAMA_BASE_URL = "http://192.168.178.43:11434"
-OLLAMA_MODEL = "llama3.2"
+    return full_prompt
 
-# System prompt
-SYSTEM_PROMPT = """You are a helpful, friendly AI assistant. 
-You remember previous conversations with each user and use that context.
-Keep responses concise and natural."""
+def update_history(user_id: int, user_msg: str, assistant_msg: str):
+    """Store the conversation in memory, keeping only last MAX_HISTORY messages"""
+    conversation_history[user_id].append({
+        "user": user_msg,
+        "assistant": assistant_msg
+    })
 
-# Session storage
-session_histories = {}
+    # Keep only the most recent messages
+    if len(conversation_history[user_id]) > MAX_HISTORY:
+        conversation_history[user_id].pop(0)
 
-def get_session_history(session_id: str) -> FileChatMessageHistory:
-    """Get or create persistent history for a user."""
-    if session_id not in session_histories:
-        session_histories[session_id] = FileChatMessageHistory(session_id)
-    return session_histories[session_id]
+def clear_history(user_id: int):
+    """Clear conversation history for a user"""
+    conversation_history[user_id] = []
 
-# Create Ollama chat model [citation:1][citation:4]
-llm = ChatOllama(
-    base_url=OLLAMA_BASE_URL,
-    model=OLLAMA_MODEL,
-    temperature=0.7,
-)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send a welcome message when /start is issued."""
+    user_id = update.effective_user.id
+    clear_history(user_id)
 
-# Create prompt with history placeholder
-prompt = ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMPT),
-    MessagesPlaceholder(variable_name="history"),
-    ("human", "{input}")
-])
+    await update.message.reply_text(
+        "🤖 Hello! I'm your local AI assistant with memory!\n\n"
+        "I remember our recent conversation so we can have natural back-and-forth.\n\n"
+        f"I'll remember the last {MAX_HISTORY // 2} exchanges.\n\n"
+        "Commands:\n"
+        "/start - Reset our conversation\n"
+        "/clear - Clear conversation history\n"
+        "/status - Show current memory status"
+    )
 
-# Build chain
-chain = prompt | llm | StrOutputParser()
+async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Clear conversation history for this user"""
+    user_id = update.effective_user.id
+    clear_history(user_id)
+    await update.message.reply_text("🧹 Conversation history cleared! Starting fresh.")
 
-# Wrap with message history [citation:3][citation:9]
-chain_with_history = RunnableWithMessageHistory(
-    chain,
-    get_session_history,
-    input_messages_key="input",
-    history_messages_key="history",
-)
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show current memory usage"""
+    user_id = update.effective_user.id
+    history_count = len(conversation_history[user_id])
+    await update.message.reply_text(
+        f"📊 Memory Status:\n"
+        f"Messages stored: {history_count}\n"
+        f"Max capacity: {MAX_HISTORY}\n"
+        f"Conversations remembered: {history_count // 2}"
+    )
 
-# Usage example
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle user messages with conversation memory"""
+    user_message = update.message.text
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    # Send a "typing" indicator
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+
+    try:
+        # Build prompt with history
+        full_prompt = build_prompt(user_id, user_message)
+
+        # Call Ollama API
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": full_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7, # Controls creativity (0.0-1.0)
+                    "top_p": 0.9, # Nucleus sampling
+                    "num_predict": 256 # Max tokens to generate
+                }
+            },
+            timeout=90
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            bot_reply = result.get("response", "Sorry, I couldn't generate a response.")
+
+            # Store in memory (user message and assistant response)
+            update_history(user_id, user_message, bot_reply)
+
+            await update.message.reply_text(bot_reply)
+        else:
+            await update.message.reply_text(f"❌ Ollama error: {response.status_code}")
+
+    except requests.exceptions.Timeout:
+        await update.message.reply_text("⏰ The AI took too long to respond. Please try again.")
+    except requests.exceptions.ConnectionError:
+        await update.message.reply_text("🔌 Cannot connect to Ollama server. Is it running?")
+    except Exception as e:
+        await update.message.reply_text(f"❌ An error occurred: {str(e)}")
+
+def main():
+    """Start the bot."""
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("clear", clear_command))
+    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("🤖 Bot is running with memory and system prompt...")
+    print(f"Memory will keep last {MAX_HISTORY // 2} exchanges per user")
+    app.run_polling()
+
 if __name__ == "__main__":
-    user_id = "telegram_user_123"
-    config = {"configurable": {"session_id": user_id}}
-
-    response = chain_with_history.invoke(
-        {"input": "My name is Alex"},
-        config=config
-    )
-    print(response)
-
-    # This will remember "Alex" even after restart
-    response = chain_with_history.invoke(
-        {"input": "What's my name?"},
-        config=config
-    )
-    print(response)
+    print("Starting Telegram bot with Ollama (with memory!)...")
+    main()
