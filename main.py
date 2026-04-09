@@ -3,6 +3,8 @@ import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from collections import defaultdict
+
+#API should be stored in a file names api_key.py in the data folder, inside a var called "api_key"
 import data.api_key
 
 # ================= CONFIGURATION =================
