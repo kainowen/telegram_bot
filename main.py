@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv, dotenv_values
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -63,7 +64,15 @@ def get_conversation_chain(user_id: int):
             prompt=prompt,
             verbose=True # Useful for debugging in console
         )
-    
+
+        #store memory
+        if not os.path.exists("chat_histories/telegram_user_{user_id}.json"):
+            with open("chat_histories/telegram_user_{user_id}.json", 'w') as file:
+                file.write()
+
+        with open("chat_histories/telegram_user_{user_id}.json", 'w') as file:
+            json.dump(user_memories[user_id].to_json(), file)
+
     return user_memories[user_id]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
