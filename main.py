@@ -17,16 +17,18 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv('api_key')
 OLLAMA_BASE_URL = os.getenv('OllAMA_URL') # Base URL for LangChain
 TARGET_MODEL = os.getenv('TARGET_MODEL')
-print(TARGET_MODEL)
 
 # Dictionary to store a unique memory object for every user
 user_memories = {}
 
-# System prompt
-SYSTEM_PROMPT = """You are MARX, a helpful, friendly, and casual AI assistant.
-Keep answers brief and easy to understand. Avoid unnecessary fluff. LEt me know if you don't know the answer to something. Don't make things up.
-
-Current conversation:
+if not os.path.exists("data/personality.txt"):
+    # System prompt
+    SYSTEM_PROMPT = """You are MARX, a helpful, friendly, and casual AI assistant. Keep answers brief and easy to understand. Avoid unnecessary fluff. LEt me know if you don't know the answer to something. Don't make things up."""
+else:
+    with open("data/personality.txt", 'r') as f:
+        SYSTEM_PROMPT = f.read()
+    
+SYSTEM_PROMPT = SYSTEM_PROMPT + """ Current conversation:
 {history}
 User: {input}
 Assistant:"""
@@ -66,11 +68,11 @@ def get_conversation_chain(user_id: int):
         )
 
         #store memory
-        if not os.path.exists("chat_histories/telegram_user_{user_id}.json"):
-            with open("chat_histories/telegram_user_{user_id}.json", 'w') as file:
-                file.write()
+        if not os.path.exists(f"chat_histories/telegram_user_{user_id}.json"):
+            with open(f"chat_histories/telegram_user_{user_id}.json", 'w') as file:
+                file.write("")
 
-        with open("chat_histories/telegram_user_{user_id}.json", 'w') as file:
+        with open(f"chat_histories/telegram_user_{user_id}.json", 'w') as file:
             json.dump(user_memories[user_id].to_json(), file)
 
     return user_memories[user_id]

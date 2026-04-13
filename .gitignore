@@ -92,3 +92,4 @@ cython_debug/
 # PyCharm
 idea/
 /data/api_key.py
+/chat_histories/*
