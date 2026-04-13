@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv, dotenv_values
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -9,12 +10,13 @@ from langchain_classic.memory import ConversationBufferWindowMemory, Conversatio
 from langchain_classic.prompts import PromptTemplate
 from langchain_community.chat_message_histories import FileChatMessageHistory
 
-import data.api_key
+load_dotenv()
 
 # ================= CONFIGURATION =================
-TELEGRAM_BOT_TOKEN = data.api_key.api_key
-OLLAMA_BASE_URL = "http://192.168.178.43:11434" # Base URL for LangChain
-OLLAMA_MODEL = "gemma4:e4b"
+TELEGRAM_BOT_TOKEN = os.getenv('api_key')
+OLLAMA_BASE_URL = os.getenv('OllAMA_URL') # Base URL for LangChain
+TARGET_MODEL = os.getenv('TARGET_MODEL')
+print(TARGET_MODEL)
 
 # Dictionary to store a unique memory object for every user
 user_memories = {}
@@ -36,7 +38,7 @@ def get_conversation_chain(user_id: int):
         # 1. Initialize the LLM
         llm = OllamaLLM(
             base_url=OLLAMA_BASE_URL,
-            model=OLLAMA_MODEL,
+            model=TARGET_MODEL,
             temperature=0.7
         )
 
