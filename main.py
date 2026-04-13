@@ -14,14 +14,14 @@ import data.api_key
 # ================= CONFIGURATION =================
 TELEGRAM_BOT_TOKEN = data.api_key.api_key
 OLLAMA_BASE_URL = "http://192.168.178.43:11434" # Base URL for LangChain
-OLLAMA_MODEL = "llama3.2"
+OLLAMA_MODEL = "gemma4:e4b"
 
 # Dictionary to store a unique memory object for every user
 user_memories = {}
 
 # System prompt
-SYSTEM_PROMPT = """You are a helpful, friendly, and casual AI assistant.
-Keep answers brief and easy to understand. Avoid unnecessary fluff.
+SYSTEM_PROMPT = """You are MARX, a helpful, friendly, and casual AI assistant.
+Keep answers brief and easy to understand. Avoid unnecessary fluff. LEt me know if you don't know the answer to something. Don't make things up.
 
 Current conversation:
 {history}
@@ -47,8 +47,6 @@ def get_conversation_chain(user_id: int):
             memory_key="history",
             return_messages=False # Set to True if using ChatPromptTemplate
         )
-
-        history_path = os.path.join()
 
         # 3. Setup the Prompt
         prompt = PromptTemplate(
