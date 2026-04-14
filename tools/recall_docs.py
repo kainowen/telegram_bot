@@ -9,7 +9,7 @@ from langchain_core.output_parsers import StrOutputParser
 CHROMA_DB_PATH = "./chroma_db"
 OLLAMA_BASE_URL = "http://192.168.178.43:11434"
 EMBEDDING_MODEL = "nomic-embed-text"
-LLM_MODEL = "gemma4:e4b-it-bf16"
+LLM_MODEL = "gemma4:e4b"
 # =================================================
 
 class DocumentQnA:

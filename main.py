@@ -9,8 +9,9 @@ from langchain_ollama import OllamaLLM
 from langchain_classic.chains import ConversationChain
 from langchain_classic.memory import ConversationBufferWindowMemory, ConversationSummaryBufferMemory
 from langchain_classic.prompts import PromptTemplate
-from langchain_community.chat_message_histories import FileChatMessageHistory
+from langchain_community.chat_message_histories import FileChatMessageHistory, SQLChatMessageHistory
 
+#Load Environmentat Variables
 load_dotenv()
 
 # ================= CONFIGURATION =================
@@ -21,13 +22,15 @@ TARGET_MODEL = os.getenv('TARGET_MODEL')
 # Dictionary to store a unique memory object for every user
 user_memories = {}
 
+#Retrieve Personality definition
 if not os.path.exists("data/personality.txt"):
     # System prompt
     SYSTEM_PROMPT = """You are MARX, a helpful, friendly, and casual AI assistant. Keep answers brief and easy to understand. Avoid unnecessary fluff. LEt me know if you don't know the answer to something. Don't make things up."""
 else:
     with open("data/personality.txt", 'r') as f:
         SYSTEM_PROMPT = f.read()
-    
+
+#Complete system Prompt    
 SYSTEM_PROMPT = SYSTEM_PROMPT + """ Current conversation:
 {history}
 User: {input}
@@ -50,8 +53,9 @@ def get_conversation_chain(user_id: int):
             llm=llm, 
             max_token_limit=1000, 
             memory_key="history",
-            return_messages=False # Set to True if using ChatPromptTemplate
+            return_messages=False # Set to True if using ChatPromptTemplate"
         )
+
 
         # 3. Setup the Prompt
         prompt = PromptTemplate(
@@ -67,13 +71,13 @@ def get_conversation_chain(user_id: int):
             verbose=True # Useful for debugging in console
         )
 
-        #store memory
+        """#store memory
         if not os.path.exists(f"chat_histories/telegram_user_{user_id}.json"):
             with open(f"chat_histories/telegram_user_{user_id}.json", 'w') as file:
                 file.write("")
 
         with open(f"chat_histories/telegram_user_{user_id}.json", 'w') as file:
-            json.dump(user_memories[user_id].to_json(), file)
+            json.dump(user_memories[user_id].to_json(), file)"""
 
     return user_memories[user_id]
 
