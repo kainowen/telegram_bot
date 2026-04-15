@@ -1,11 +1,4 @@
-"""
-Telegram Bot with Ollama - Enhanced Version
-Features:
-- SQL-based persistent conversation memory (per user)
-- ChatPromptTemplate for better conversational flow
-- RAG (Retrieval-Augmented Generation) for document Q&A
-"""
-
+print("Importing Packages...")
 import os
 import json
 from dotenv import load_dotenv
@@ -32,7 +25,7 @@ OLLAMA_BASE_URL = os.getenv('OllAMA_URL')
 TARGET_MODEL = os.getenv('TARGET_MODEL')
 
 # SQLite database for conversation history
-DATABASE_URL = "sqlite:///conversations.db"
+DATABASE_URL = "sqlite:///chat_histories/chat_history.db"
 
 # RAG Configuration
 DOCS_DIRECTORY = "./docs"           # Folder containing your documentation
