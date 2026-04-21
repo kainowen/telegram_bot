@@ -5,10 +5,13 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 
-DOCS_DIRECTORY = "./docs"
-CHROMA_DB_PATH = "./chroma_db"
-EMBEDDING_MODEL = "nomic-embed-text"
-OLLAMA_BASE_URL = "http://192.168.178.43:11434"
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+# RAG Configuration
+DOCS_DIRECTORY = os.getenv('DOCS_DIRECTORY')
+CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH')
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
+OLLAMA_BASE_URL = os.getenv('Ollama_URL')
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
 

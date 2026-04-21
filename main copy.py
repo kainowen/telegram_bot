@@ -12,12 +12,17 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import SQLChatMessageHistory
 from langchain_classic.memory import ConversationSummaryBufferMemory
 from langchain_core.messages import get_buffer_string
-
+from langchain_community.tools import DuckDuckGoSearchResults
+#Import DuckDuckGo Function
+from duckduckgo_search import DDGS
 # RAG imports
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 
+from tools import web_search
+
 load_dotenv()
+
 
 # ================= CONFIGURATION =================
 TELEGRAM_BOT_TOKEN = os.getenv('api_key')
@@ -25,12 +30,12 @@ OLLAMA_BASE_URL = os.getenv('Ollama_URL')
 TARGET_MODEL = os.getenv('TARGET_MODEL')
 
 # SQLite database for conversation history
-DATABASE_URL = "sqlite:///chat_histories/chat_history.db"
+DATABASE_URL = os.getenv('DATABASE_URL')
 
 # RAG Configuration
-DOCS_DIRECTORY = "./docs"
-CHROMA_DB_PATH = "./chroma_db"
-EMBEDDING_MODEL = "nomic-embed-text"
+DOCS_DIRECTORY = os.getenv('DOCS_DIRECTORY')
+CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH')
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 
 # =================================================
 
@@ -55,7 +60,7 @@ def get_session_history(session_id: str):
     """
     return SQLChatMessageHistory(
         session_id=session_id,
-        connection_string=DATABASE_URL
+        connection=DATABASE_URL
     )
 
 def clear_session_history(session_id: str):
@@ -250,6 +255,31 @@ async def askdocs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = rag_system.query(question)
     await update.message.reply_text(f"📚 **Documentation Answer:**\n\n{answer}")
 
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    query = " ".join(context.args)
+    
+    if not query:
+        await update.message.reply_text("🔍 Please provide a search query!\nExample: /search latest AI news")
+        return
+    
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    
+    try:
+        # Perform search - returns formatted text results
+        results = search.invoke(query)
+        
+        # Telegram has a 4096 character limit per message
+        if len(results) > 4000:
+            results = results[:4000] + "...\n\n(Results truncated)"
+        
+        await update.message.reply_text(f"🔍 Search results for: {query}\n\n{results}")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Search failed: {str(e)}")
+
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages with memory."""
     user_message = update.message.text
@@ -309,6 +339,8 @@ def main():
     app.add_handler(CommandHandler("clear", clear_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("askdocs", askdocs_command))
+    app.add_handler(CommandHandler("search", web_search.search_command))
+    app.add_handler(CommandHandler("news", web_search.news_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("🤖 Bot is starting...")

@@ -6,10 +6,11 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
 # ================= CONFIGURATION =================
-CHROMA_DB_PATH = "./chroma_db"
-OLLAMA_BASE_URL = "http://192.168.178.43:11434"
-EMBEDDING_MODEL = "nomic-embed-text"
-LLM_MODEL = "gemma4:e4b"
+DOCS_DIRECTORY = os.getenv('DOCS_DIRECTORY')
+CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH')
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
+OLLAMA_BASE_URL = os.getenv('Ollama_URL')
+LLM_MODEL = os.getenv('TARGET_MODEL')
 # =================================================
 
 class DocumentQnA:
