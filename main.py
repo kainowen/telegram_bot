@@ -173,16 +173,15 @@ class DocumentQnA:
             
             docs = self.retriever.invoke(question)
             context = "\n\n---\n\n".join([doc.page_content for doc in docs])
-            
+
             prompt = ChatPromptTemplate.from_messages([
                 ("system", f"""You are MARX. Answer based ONLY on the context below.
-If unsure, say "I couldn't find that in the documentation."
+                    If unsure, say "I couldn't find that in the documentation."
 
-Context:
-{{context}}"""),
-                ("human", "{{question}}")
+                Context: {context}"""),
+                ("human", "{question}")
             ])
-            
+
             chain = prompt | llm | StrOutputParser()
             return chain.invoke({"context": context, "question": question})
             
@@ -210,6 +209,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/clear - Clear conversation memory\n"
         "/askdocs <question> - Query my documentation\n"
         "/status - Show current status"
+        "/search <question> - Search the internet for an answer\n"
+        "/news - Search the internet for relevant news"
+
     )
 
 async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -254,30 +256,6 @@ async def askdocs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     answer = rag_system.query(question)
     await update.message.reply_text(f"📚 **Documentation Answer:**\n\n{answer}")
-
-async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    query = " ".join(context.args)
-    
-    if not query:
-        await update.message.reply_text("🔍 Please provide a search query!\nExample: /search latest AI news")
-        return
-    
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    
-    try:
-        # Perform search - returns formatted text results
-        results = search.invoke(query)
-        
-        # Telegram has a 4096 character limit per message
-        if len(results) > 4000:
-            results = results[:4000] + "...\n\n(Results truncated)"
-        
-        await update.message.reply_text(f"🔍 Search results for: {query}\n\n{results}")
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Search failed: {str(e)}")
-
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
