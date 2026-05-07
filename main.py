@@ -8,11 +8,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import SQLChatMessageHistory
 from langchain_classic.memory import ConversationSummaryBufferMemory
 from langchain_core.messages import get_buffer_string
 from langchain_community.tools import DuckDuckGoSearchResults
+from langchain_core.messages.utils import trim_messages
 #Import DuckDuckGo Function
 from duckduckgo_search import DDGS
 # RAG imports
@@ -28,6 +30,7 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv('api_key')
 OLLAMA_BASE_URL = os.getenv('Ollama_URL')
 TARGET_MODEL = os.getenv('TARGET_MODEL')
+PERSONALITY = os.getenv('PERSONALITY')
 
 # SQLite database for conversation history
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -37,16 +40,17 @@ DOCS_DIRECTORY = os.getenv('DOCS_DIRECTORY')
 CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH')
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 
+
 # =================================================
 
 # Load system prompt from file or use default
 def load_system_prompt():
-    if not os.path.exists("data/personality.txt"):
+    if not os.path.exists(PERSONALITY):
         return """You are MARX, a helpful, friendly, and casual AI assistant. 
 Keep answers brief and easy to understand. Avoid unnecessary fluff. 
 Let me know if you don't know the answer to something. Don't make things up."""
     else:
-        with open("data/personality.txt", 'r') as f:
+        with open(PERSONALITY, 'r') as f:
             return f.read()
 
 SYSTEM_PROMPT = load_system_prompt()
@@ -284,8 +288,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ("human", "{input}")
         ])
         
+        #Initialise the Trimmer to reduce the prompt length
+        trimmer = trim_messages(
+            max_tokens=3000,
+            strategy="last",
+            token_counter=llm,
+            include_system=True,
+            start_on="human"
+        )
+
+
         # Create chain
-        chain = prompt | llm | StrOutputParser()
+        chain = (
+            {
+                "history": lambda x: trimmer.invoke(x.get("history", [])),
+                "input": lambda x: x["input"]
+            }
+                 | prompt 
+                 | llm 
+                 | StrOutputParser()
+                )
         
         # Wrap with history using RunnableWithMessageHistory
         # This automatically saves messages to SQL

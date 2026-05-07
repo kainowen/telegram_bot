@@ -93,3 +93,4 @@ cython_debug/
 idea/
 /data/api_key.py
 /chat_histories/*
+/chroma_db/*
