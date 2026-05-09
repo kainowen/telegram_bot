@@ -23,7 +23,7 @@ from langchain_ollama import OllamaEmbeddings
 
 from tools import web_search
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 # ================= CONFIGURATION =================
@@ -47,13 +47,14 @@ EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 def load_system_prompt():
     if not os.path.exists(PERSONALITY):
         return """You are MARX, a helpful, friendly, and casual AI assistant. 
-Keep answers brief and easy to understand. Avoid unnecessary fluff. 
-Let me know if you don't know the answer to something. Don't make things up."""
+    Keep answers brief and easy to understand. Avoid unnecessary fluff. 
+    Let me know if you don't know the answer to something. Don't make things up."""
     else:
         with open(PERSONALITY, 'r') as f:
             return f.read()
 
 SYSTEM_PROMPT = load_system_prompt()
+         
 
 # ================= SQL HISTORY SETUP =================
 
