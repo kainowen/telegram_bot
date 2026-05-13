@@ -94,3 +94,4 @@ idea/
 /data/api_key.py
 /chat_histories/*
 /chroma_db/*
+/data/personality_1.txt

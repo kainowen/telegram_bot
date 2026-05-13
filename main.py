@@ -21,6 +21,13 @@ from duckduckgo_search import DDGS
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 
+#image generation modules:
+import aiohttp
+import base64
+import asyncio
+from io import BytesIO
+import time # For timing the generation
+
 from tools import web_search
 
 load_dotenv(override=True)
@@ -31,6 +38,7 @@ TELEGRAM_BOT_TOKEN = os.getenv('api_key')
 OLLAMA_BASE_URL = os.getenv('Ollama_URL')
 TARGET_MODEL = os.getenv('TARGET_MODEL')
 PERSONALITY = os.getenv('PERSONALITY')
+PERSONALITIES = os.getenv('PERSONALITIES')
 
 # SQLite database for conversation history
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -44,17 +52,45 @@ EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 # =================================================
 
 # Load system prompt from file or use default
-def load_system_prompt():
-    if not os.path.exists(PERSONALITY):
-        return """You are MARX, a helpful, friendly, and casual AI assistant. 
-    Keep answers brief and easy to understand. Avoid unnecessary fluff. 
-    Let me know if you don't know the answer to something. Don't make things up."""
-    else:
-        with open(PERSONALITY, 'r') as f:
-            return f.read()
+class ToggleSystemPropmt:
+    '''Allows for toggling between different system prompts'''
+  
+    PERSONALITY = ""
 
-SYSTEM_PROMPT = load_system_prompt()
-         
+    def __init__(self):
+        self.index = 1
+        self.personalities = PERSONALITIES.split(";")
+  
+    SYSTEM_PROMPT = ""
+
+    def __call__(self):
+        if self.index == 0:
+            self.index = 1
+        else: 
+            self.index = 0
+        PERSONALITY = self.personalities[self.index]    
+
+        print(PERSONALITY)
+
+        if not os.path.exists(PERSONALITY):
+            SYSTEM_PROMPT =  """You are MARX, a helpful, friendly, and casual AI assistant. 
+                        Keep answers brief and easy to understand. Avoid unnecessary fluff. 
+                        Let me know if you don't know the answer to something. Don't make things up."""
+        else:
+            with open(PERSONALITY, 'r') as f:
+                SYSTEM_PROMPT=  f.read()
+        return(SYSTEM_PROMPT)        
+
+
+togglePrompt = ToggleSystemPropmt()
+SYSTEM_PROMPT = togglePrompt()
+
+
+async def toggle(update, context):
+    #Redefines the system Prompt
+    global SYSTEM_PROMPT
+    SYSTEM_PROMPT = togglePrompt()
+
 
 # ================= SQL HISTORY SETUP =================
 
@@ -195,6 +231,7 @@ class DocumentQnA:
 
 rag_system = DocumentQnA()
 
+
 # ================= TELEGRAM BOT HANDLERS =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -268,7 +305,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
-    
+    #print(SYSTEM_PROMPT)
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     
     try:
@@ -342,7 +379,9 @@ def main():
     app.add_handler(CommandHandler("askdocs", askdocs_command))
     app.add_handler(CommandHandler("search", web_search.search_command))
     app.add_handler(CommandHandler("news", web_search.news_command))
+    app.add_handler(CommandHandler("toggle", toggle))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
     
     print("🤖 Bot is starting...")
     print(f"   Model: {TARGET_MODEL}")
