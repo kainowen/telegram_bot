@@ -70,8 +70,6 @@ class ToggleSystemPropmt:
             self.index = 0
         PERSONALITY = self.personalities[self.index]    
 
-        print(PERSONALITY)
-
         if not os.path.exists(PERSONALITY):
             SYSTEM_PROMPT =  """You are MARX, a helpful, friendly, and casual AI assistant. 
                         Keep answers brief and easy to understand. Avoid unnecessary fluff. 
@@ -80,16 +78,21 @@ class ToggleSystemPropmt:
             with open(PERSONALITY, 'r') as f:
                 SYSTEM_PROMPT=  f.read()
         return(SYSTEM_PROMPT)        
+    
+    def getName(self):
+        return self.index
 
 
 togglePrompt = ToggleSystemPropmt()
 SYSTEM_PROMPT = togglePrompt()
 
 
-async def toggle(update, context):
+async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     #Redefines the system Prompt
     global SYSTEM_PROMPT
     SYSTEM_PROMPT = togglePrompt()
+    System_Personality = togglePrompt.getName()
+    await update.message.reply_text(f"Successfuly Switched to Personality: {System_Personality}")
 
 
 # ================= SQL HISTORY SETUP =================
@@ -253,6 +256,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status - Show current status"
         "/search <question> - Search the internet for an answer\n"
         "/news - Search the internet for relevant news"
+        "/code - generate a simple python file"
 
     )
 
@@ -299,6 +303,61 @@ async def askdocs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = rag_system.query(question)
     await update.message.reply_text(f"📚 **Documentation Answer:**\n\n{answer}")
 
+# ================= GENERATE CODE =================
+
+async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Generates a section of code based on a request in telegram and writes it to a tool.py file."""
+    user_message = update.message.text.replace("/code","")
+    user_id = str(update.effective_user.id)
+    chat_id = update.effective_chat.id
+    SYSTEM_PROMPT = "You are a Python script generator. Your goal is to provide functional, concise code based on user requests.\
+                    STRICT RULES:\
+                    Output ONLY valid Python code.\
+                    Do NOT use Markdown formatting (no ```python blocks).\
+                    Do NOT provide explanations, greetings, or commentary.\
+                    Ensure the code is self-contained and runnable."
+
+    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+        
+    try:
+       # Initialize LLM
+        llm = ChatOllama(
+            base_url=OLLAMA_BASE_URL,
+            model=TARGET_MODEL,
+            temperature=0.7,
+        )
+        
+        
+        # Create ChatPromptTemplate
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", SYSTEM_PROMPT),
+            ("user", "{input}")  # This tells LangChain where to inject user_message
+        ])
+        
+        # Create chain
+        chain = ( prompt 
+                | llm 
+                | StrOutputParser()
+                )
+
+
+        # Invoke with the user's code request
+        bot_reply = chain.invoke(
+            {"input": user_message},
+            config={"configurable": {"session_id": user_id}}
+            )
+
+        #Write code to temp tool.py file
+        tool_path = "temp_utilities/tool.py"
+        if os.path.exists(tool_path):
+            with open(tool_path, "w") as file:
+                file.write(bot_reply)
+
+        await update.message.reply_text(f"Code succesfuly writen to /temp_utilities/tool.py")
+
+            
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages with memory."""
@@ -379,6 +438,7 @@ def main():
     app.add_handler(CommandHandler("askdocs", askdocs_command))
     app.add_handler(CommandHandler("search", web_search.search_command))
     app.add_handler(CommandHandler("news", web_search.news_command))
+    app.add_handler(CommandHandler("code", code))
     app.add_handler(CommandHandler("toggle", toggle))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 

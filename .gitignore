@@ -95,3 +95,4 @@ idea/
 /chat_histories/*
 /chroma_db/*
 /data/personality_1.txt
+/test/temp_utilities
