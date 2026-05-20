@@ -55,6 +55,8 @@ class SQLBackedSummaryMemory:
             return_messages=True,
             chat_memory=self.history  # This links SQL storage to the memory
         )
+
+        self.memory.save_context
     
     def load_memory_variables(self, inputs):
         print("Starting: load_memory_variables")
@@ -63,8 +65,6 @@ class SQLBackedSummaryMemory:
     
     def save_context(self, inputs, outputs):
         print("Starting: save_context")
-        print(inputs)
-        print(outputs)
         """Save the conversation context to both memory and SQL."""
         self.memory.save_context(inputs, outputs)
     

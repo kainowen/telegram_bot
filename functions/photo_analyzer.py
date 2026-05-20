@@ -100,8 +100,8 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
         # Save a text-only representation to the SQL store
         memoryOBJ =projectMemory.SQLBackedSummaryMemory(user_id, DATABASE_URL,personality=PERSONALITY,llm=llm)
         memoryOBJ.save_context(
-            inputs=f"[Photo Analysis Request]: {user_question}",
-            outputs= response.content
+            {"input":f"[Photo Analysis Request]: {user_question}"},
+            {"output":response.content}
         )
 
     except asyncio.TimeoutError:
