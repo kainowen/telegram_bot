@@ -1,6 +1,7 @@
 print("Importing Packages...")
 import os
 from dotenv import load_dotenv
+import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -42,6 +43,7 @@ EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 # Load system prompt from file or use default
 togglePrompt = toggleSystemPrompt.ToggleSystemPropmt(PERSONALITIES=PERSONALITIES)
 SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES)
+SYSTEM_PROMPT = f"{SYSTEM_PROMPT} \n Current Date: {datetime.datetime.now()}"
 SYSTEM_PERSONALITY = togglePrompt.getName()
 #Creates container for conversation memory
 user_memories = {}
@@ -116,15 +118,20 @@ async def askdocs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    processing_msg = await update.message.reply_text("🧠 Thinking...")
+
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     answer = rag_system.query(question,SYSTEM_PROMPT=SYSTEM_PROMPT)
+    await processing_msg.delete()
     await update.message.reply_text(f"📚 **Documentation Answer:**\n\n{answer}")
 
 async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     #Redefines the system Prompt
     global SYSTEM_PROMPT
     SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES)
+    SYSTEM_PROMPT = f"{SYSTEM_PROMPT} \n Current Date: {datetime.datetime.now()}"
     global SYSTEM_PERSONALITY
+    print(SYSTEM_PROMPT)
     SYSTEM_PERSONALITY = togglePrompt.getName()
     await update.message.reply_text(f"Successfuly Switched to Personality: {SYSTEM_PERSONALITY}")
 
@@ -138,7 +145,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
 
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-    
+    # Send a processing message since this takes time
+    processing_msg = await update.message.reply_text("🧠 Thinking...")
+
     try:
         # Initialize LLM
         llm = ChatOllama(
@@ -194,6 +203,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config={"configurable": {"session_id": user_id}}
         )
         
+        await processing_msg.delete()
         await update.message.reply_text(bot_reply)
         
     except Exception as e:

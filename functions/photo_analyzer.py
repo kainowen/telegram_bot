@@ -12,7 +12,7 @@ from functions import projectMemory
 async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLAMA_BASE_URL, SYSTEM_PROMPT,TARGET_MODEL,DATABASE_URL,user_memories,PERSONALITY):
     """Analyze photos using LangChain + Gemma 4 E4B."""
     print("Starting: analyse_image")
-    #TARGET_MODEL = "fredrezones55/Gemma-4-Uncensored-HauhauCS-Aggressive:e4b-SCN"
+
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
@@ -25,7 +25,7 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     
     # Send a processing message since this takes time
-    processing_msg = await update.message.reply_text("🌿 Analyzing your plant photo... This may take 20-30 seconds.")
+    processing_msg = await update.message.reply_text("📷 Analyzing your photo... This may take 20-30 seconds.")
     
     try:
         # Download the image from Telegram
