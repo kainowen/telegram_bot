@@ -94,5 +94,6 @@ idea/
 /data/api_key.py
 /chat_histories/*
 /chroma_db/*
-/data/personality_1.txt
+/data/personalities/
 /test/temp_utilities
+/temp_utilities/*

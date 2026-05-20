@@ -4,32 +4,20 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
+#Custom imports
+from functions import toggleSystemPrompt, web_search, projectMemory,generate_code,rag_recall,photo_analyzer
+
 # LangChain Imports
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.chat_message_histories import SQLChatMessageHistory
-from langchain_classic.memory import ConversationSummaryBufferMemory
-from langchain_core.messages import get_buffer_string
-from langchain_community.tools import DuckDuckGoSearchResults
 from langchain_core.messages.utils import trim_messages
-#Import DuckDuckGo Function
-from duckduckgo_search import DDGS
-# RAG imports
+
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 
-#image generation modules:
-import aiohttp
-import base64
-import asyncio
-from io import BytesIO
-import time # For timing the generation
-
-from tools import web_search
-
+print("Loading Environmental variables...")
 load_dotenv(override=True)
 
 
@@ -49,191 +37,19 @@ CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH')
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 
 
-# =================================================
+# ======================DEFINE SYSTEM PROMPT/PERSONALITY===========================
 
 # Load system prompt from file or use default
-class ToggleSystemPropmt:
-    '''Allows for toggling between different system prompts'''
-  
-    PERSONALITY = ""
-
-    def __init__(self):
-        self.index = 1
-        self.personalities = PERSONALITIES.split(";")
-  
-    SYSTEM_PROMPT = ""
-
-    def __call__(self):
-        if self.index == 0:
-            self.index = 1
-        else: 
-            self.index = 0
-        PERSONALITY = self.personalities[self.index]    
-
-        if not os.path.exists(PERSONALITY):
-            SYSTEM_PROMPT =  """You are MARX, a helpful, friendly, and casual AI assistant. 
-                        Keep answers brief and easy to understand. Avoid unnecessary fluff. 
-                        Let me know if you don't know the answer to something. Don't make things up."""
-        else:
-            with open(PERSONALITY, 'r') as f:
-                SYSTEM_PROMPT=  f.read()
-        return(SYSTEM_PROMPT)        
-    
-    def getName(self):
-        return self.index
-
-
-togglePrompt = ToggleSystemPropmt()
-SYSTEM_PROMPT = togglePrompt()
-
-
-async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    #Redefines the system Prompt
-    global SYSTEM_PROMPT
-    SYSTEM_PROMPT = togglePrompt()
-    System_Personality = togglePrompt.getName()
-    await update.message.reply_text(f"Successfuly Switched to Personality: {System_Personality}")
-
-
-# ================= SQL HISTORY SETUP =================
-
-def get_session_history(session_id: str):
-    """
-    Creates or retrieves a SQL-based chat history for a specific user.
-    This stores raw message history in the database.
-    """
-    return SQLChatMessageHistory(
-        session_id=session_id,
-        connection=DATABASE_URL
-    )
-
-def clear_session_history(session_id: str):
-    """Clears conversation history for a specific user from the database."""
-    history = get_session_history(session_id)
-    history.clear()
-
-# ================= MEMORY MANAGER =================
-# We'll use ConversationSummaryBufferMemory with SQL as the underlying store
-# This combines efficient summarization with persistent storage
-
-class SQLBackedSummaryMemory:
-    """
-    A wrapper that combines ConversationSummaryBufferMemory with SQL persistence.
-    This gives you the best of both worlds:
-    - Summarization to manage context window
-    - Persistent storage in SQL database
-    """
-    
-    def __init__(self, session_id: str, llm, max_token_limit=1000):
-        self.session_id = session_id
-        self.llm = llm
-        self.max_token_limit = max_token_limit
-        
-        # Load existing history from SQL
-        self.history = get_session_history(session_id)
-        
-        # Create the summary memory with the loaded history
-        self.memory = ConversationSummaryBufferMemory(
-            llm=llm,
-            max_token_limit=max_token_limit,
-            return_messages=True,
-            chat_memory=self.history  # This links SQL storage to the memory
-        )
-    
-    def load_memory_variables(self, inputs):
-        """Return the memory variables (the conversation summary + recent history)."""
-        return self.memory.load_memory_variables(inputs)
-    
-    def save_context(self, inputs, outputs):
-        """Save the conversation context to both memory and SQL."""
-        self.memory.save_context(inputs, outputs)
-    
-    def clear(self):
-        """Clear all memory for this session."""
-        self.memory.clear()
-        clear_session_history(self.session_id)
-    
-    @property
-    def chat_memory(self):
-        """Access the underlying SQL chat memory."""
-        return self.history
-
-# Dictionary to store memory instances per user
+togglePrompt = toggleSystemPrompt.ToggleSystemPropmt(PERSONALITIES=PERSONALITIES)
+SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES)
+SYSTEM_PERSONALITY = togglePrompt.getName()
+#Creates container for conversation memory
 user_memories = {}
-
-def get_conversation_memory(user_id: str, llm):
-    """Retrieves or creates a SQL-backed memory for a specific user."""
-    if user_id not in user_memories:
-        user_memories[user_id] = SQLBackedSummaryMemory(
-            session_id=user_id,
-            llm=llm,
-            max_token_limit=1000
-        )
-    return user_memories[user_id]
 
 # ================= RAG SETUP =================
 
-class DocumentQnA:
-    """Handles Retrieval-Augmented Generation (RAG) for querying local documents."""
-    
-    def __init__(self):
-        self.is_available = False
-        self.retriever = None
-        self.rag_chain = None
-        
-        if not os.path.exists(CHROMA_DB_PATH):
-            print("⚠️ RAG not available: No vector database found.")
-            return
-        
-        try:
-            embeddings = OllamaEmbeddings(
-                base_url=OLLAMA_BASE_URL,
-                model=EMBEDDING_MODEL
-            )
-            
-            vector_store = Chroma(
-                persist_directory=CHROMA_DB_PATH,
-                embedding_function=embeddings
-            )
-            
-            self.retriever = vector_store.as_retriever(search_kwargs={"k": 4})
-            self.is_available = True
-            print("✅ RAG system loaded!")
-        except Exception as e:
-            print(f"⚠️ RAG initialization failed: {e}")
-    
-    def query(self, question: str) -> str:
-        """Query the document database with a question."""
-        if not self.is_available:
-            return "📚 Document Q&A is not available."
-        
-        try:
-            # For RAG, we'll use a simple prompt without memory
-            llm = ChatOllama(
-                base_url=OLLAMA_BASE_URL,
-                model=TARGET_MODEL,
-                temperature=0.3,
-            )
-            
-            docs = self.retriever.invoke(question)
-            context = "\n\n---\n\n".join([doc.page_content for doc in docs])
-
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", f"""You are MARX. Answer based ONLY on the context below.
-                    If unsure, say "I couldn't find that in the documentation."
-
-                Context: {context}"""),
-                ("human", "{question}")
-            ])
-
-            chain = prompt | llm | StrOutputParser()
-            return chain.invoke({"context": context, "question": question})
-            
-        except Exception as e:
-            return f"❌ RAG query failed: {str(e)}"
-
-rag_system = DocumentQnA()
-
+print(OLLAMA_BASE_URL, " ", EMBEDDING_MODEL, " ", TARGET_MODEL, " ", CHROMA_DB_PATH)
+rag_system = rag_recall.DocumentQnA(CHROMA_DB_PATH,OLLAMA_BASE_URL,EMBEDDING_MODEL,TARGET_MODEL)
 
 # ================= TELEGRAM BOT HANDLERS =================
 
@@ -245,7 +61,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in user_memories:
         user_memories[user_id].clear()
     else:
-        clear_session_history(user_id)
+        projectMemory.clear_session_history(user_id, DATABASE_URL,SYSTEM_PERSONALITY)
     
     await update.message.reply_text(
         "🤖 Hey, how can I help you today...\n\n"
@@ -267,14 +83,14 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id in user_memories:
         user_memories[user_id].clear()
     else:
-        clear_session_history(user_id)
+        projectMemory.clear_session_history(session_id=user_id, DATABASE_URL=DATABASE_URL,personality=SYSTEM_PERSONALITY)
     
     await update.message.reply_text("🧹 Memory wiped! Starting fresh.")
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command."""
     user_id = str(update.effective_user.id)
-    history = get_session_history(user_id)
+    history = projectMemory.get_session_history(session_id=user_id,DATABASE_URL=DATABASE_URL,personality=SYSTEM_PERSONALITY)
     message_count = len(history.messages)
     
     status_text = f"""📊 Bot Status:
@@ -283,6 +99,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • Messages in SQL: {message_count}
 • RAG: {'✅ Available' if rag_system.is_available else '❌ Not available'}
 • Memory type: SQL + Summary Buffer
+• Personality: {SYSTEM_PERSONALITY}
 
 To use document Q&A: /askdocs your question here"""
     
@@ -300,71 +117,26 @@ async def askdocs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    answer = rag_system.query(question)
+    answer = rag_system.query(question,SYSTEM_PROMPT=SYSTEM_PROMPT)
     await update.message.reply_text(f"📚 **Documentation Answer:**\n\n{answer}")
 
-# ================= GENERATE CODE =================
+async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    #Redefines the system Prompt
+    global SYSTEM_PROMPT
+    SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES)
+    global SYSTEM_PERSONALITY
+    SYSTEM_PERSONALITY = togglePrompt.getName()
+    await update.message.reply_text(f"Successfuly Switched to Personality: {SYSTEM_PERSONALITY}")
 
-async def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Generates a section of code based on a request in telegram and writes it to a tool.py file."""
-    user_message = update.message.text.replace("/code","")
-    user_id = str(update.effective_user.id)
-    chat_id = update.effective_chat.id
-    SYSTEM_PROMPT = "You are a Python script generator. Your goal is to provide functional, concise code based on user requests.\
-                    STRICT RULES:\
-                    Output ONLY valid Python code.\
-                    Do NOT use Markdown formatting (no ```python blocks).\
-                    Do NOT provide explanations, greetings, or commentary.\
-                    Ensure the code is self-contained and runnable."
-
-    await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        
-    try:
-       # Initialize LLM
-        llm = ChatOllama(
-            base_url=OLLAMA_BASE_URL,
-            model=TARGET_MODEL,
-            temperature=0.7,
-        )
-        
-        
-        # Create ChatPromptTemplate
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT),
-            ("user", "{input}")  # This tells LangChain where to inject user_message
-        ])
-        
-        # Create chain
-        chain = ( prompt 
-                | llm 
-                | StrOutputParser()
-                )
-
-
-        # Invoke with the user's code request
-        bot_reply = chain.invoke(
-            {"input": user_message},
-            config={"configurable": {"session_id": user_id}}
-            )
-
-        #Write code to temp tool.py file
-        tool_path = "temp_utilities/tool.py"
-        if os.path.exists(tool_path):
-            with open(tool_path, "w") as file:
-                file.write(bot_reply)
-
-        await update.message.reply_text(f"Code succesfuly writen to /temp_utilities/tool.py")
-
-            
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
+def code(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return generate_code.code(update, context, OLLAMA_BASE_URL=OLLAMA_BASE_URL, TARGET_MODEL=TARGET_MODEL)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle regular text messages with memory."""
     user_message = update.message.text
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
-    #print(SYSTEM_PROMPT)
+
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     
     try:
@@ -374,10 +146,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             model=TARGET_MODEL,
             temperature=0.7,
         )
-        
-        # Get or create memory for this user (SQL-backed summary memory)
-        memory = get_conversation_memory(user_id, llm)
-        
+
         # Create ChatPromptTemplate
         prompt = ChatPromptTemplate.from_messages([
             ("system", SYSTEM_PROMPT),
@@ -394,23 +163,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             start_on="human"
         )
 
-
         # Create chain
         chain = (
             {
                 "history": lambda x: trimmer.invoke(x.get("history", [])),
                 "input": lambda x: x["input"]
             }
-                 | prompt 
+                 | prompt  
                  | llm 
                  | StrOutputParser()
                 )
         
         # Wrap with history using RunnableWithMessageHistory
         # This automatically saves messages to SQL
+
+        def get_session_history_wrapper():
+            '''Wraps the get_session_history function so that it can be passed into the chain_with_history runnable '''
+            return projectMemory.get_session_history(session_id=user_id, DATABASE_URL=DATABASE_URL,personality=SYSTEM_PERSONALITY)
+
         chain_with_history = RunnableWithMessageHistory(
             chain,
-            get_session_history,
+            get_session_history=get_session_history_wrapper,
             input_messages_key="input",
             history_messages_key="history",
         )
@@ -426,6 +199,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
+def analyse_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_memories = projectMemory.get_session_history(session_id=str(update.effective_user.id),DATABASE_URL=DATABASE_URL,personality=SYSTEM_PERSONALITY)
+    return photo_analyzer.analyze_image(update,context, OLLAMA_BASE_URL=OLLAMA_BASE_URL,SYSTEM_PROMPT=SYSTEM_PROMPT,TARGET_MODEL=TARGET_MODEL,DATABASE_URL=DATABASE_URL,user_memories=user_memories,PERSONALITY=SYSTEM_PERSONALITY)
 # ================= MAIN ENTRY POINT =================
 
 def main():
@@ -440,6 +216,7 @@ def main():
     app.add_handler(CommandHandler("news", web_search.news_command))
     app.add_handler(CommandHandler("code", code))
     app.add_handler(CommandHandler("toggle", toggle))
+    app.add_handler(MessageHandler(filters.PHOTO, analyse_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     

@@ -4,12 +4,13 @@ from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader, T
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
+from pathlib import Path
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 # RAG Configuration
-DOCS_DIRECTORY = os.getenv('DOCS_DIRECTORY')
-CHROMA_DB_PATH = os.getenv('CHROMA_DB_PATH')
+DOCS_DIRECTORY = str(Path(__file__).resolve().parent.parent / os.getenv('DOCS_DIRECTORY'))
+CHROMA_DB_PATH = str(Path(__file__).resolve().parent.parent / os.getenv('CHROMA_DB_PATH'))
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 OLLAMA_BASE_URL = os.getenv('Ollama_URL')
 CHUNK_SIZE = 1000
@@ -18,17 +19,18 @@ CHUNK_OVERLAP = 200
 def build_database():
     """One-time build of the vector database"""
     print("🔨 Building vector database from documents...")
-    
+
     # Load documents
     loaders = [
         DirectoryLoader(DOCS_DIRECTORY, glob="**/*.pdf", loader_cls=PyPDFLoader),
         DirectoryLoader(DOCS_DIRECTORY, glob="**/*.txt", loader_cls=TextLoader),
-        DirectoryLoader(DOCS_DIRECTORY, glob="**/*.md", loader_cls=TextLoader),
+        DirectoryLoader(DOCS_DIRECTORY, glob="**/*.md", loader_cls=TextLoader, loader_kwargs={"encoding":"utf-8"})
     ]
-    
+
     all_documents = []
     for loader in loaders:
         try:
+            print(loader)
             docs = loader.load()
             all_documents.extend(docs)
             print(f"  📄 Loaded {len(docs)} documents from {loader.__class__.__name__}")
