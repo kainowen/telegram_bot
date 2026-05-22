@@ -30,7 +30,6 @@ def build_database():
     all_documents = []
     for loader in loaders:
         try:
-            print(loader)
             docs = loader.load()
             all_documents.extend(docs)
             print(f"  📄 Loaded {len(docs)} documents from {loader.__class__.__name__}")
@@ -65,5 +64,5 @@ def build_database():
     print(f"✅ Vector database saved to {CHROMA_DB_PATH}")
     return True
 
-if __name__ == "__main__":
-    build_database()
+#if __name__ == "__main__":
+#    build_database()

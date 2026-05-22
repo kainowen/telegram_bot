@@ -8,9 +8,10 @@ search = DuckDuckGoSearchRun()
 
 # Use it in your bot
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
+    """Searches DuckDuckGo for search Term"""
+    print("Starting: search_command...")
     query = " ".join(context.args)
-    
+
     if not query:
         await update.message.reply_text("🔍 Please provide a search query!\nExample: /search latest AI news")
         return
@@ -33,6 +34,7 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Search for recent news articles"""
+    print("Starting: news_command...")
     query = " ".join(context.args)
     
     if not query:

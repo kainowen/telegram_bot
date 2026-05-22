@@ -94,6 +94,7 @@ idea/
 /data/api_key.py
 /chat_histories/*
 /chroma_db/*
+/chrome_db/chroma.sqlite3
 /data/personalities/
 /test/temp_utilities
 /temp_utilities/*

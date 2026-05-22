@@ -8,6 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 
 async def code(update, context, OLLAMA_BASE_URL, TARGET_MODEL):
     """Generates a section of code based on a request in telegram and writes it to a tool.py file."""
+    print("Starting: code...")
     user_message = update.message.text.replace("/code","")
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
@@ -54,7 +55,8 @@ async def code(update, context, OLLAMA_BASE_URL, TARGET_MODEL):
             with open(tool_path, "w") as file:
                 file.write(bot_reply)
 
-        await update.message.reply_text(f"Code succesfuly writen to /temp_utilities/tool.py")
+        await update.message.reply_text(f"Code succesfuly writen to /temp_utilities/tool.py")   # Push message to Telegram
+
 
             
     except Exception as e:
