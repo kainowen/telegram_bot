@@ -160,6 +160,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
+    print(chat_id)
+    print(user_id)
+    print(update.effective_sender.id)
+    print(update.effective_message.id)
+
 
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     # Send a processing message since this takes time
@@ -171,6 +176,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             base_url=OLLAMA_BASE_URL,
             model=TARGET_MODEL,
             temperature=0.7,
+            reasoning=False
         )
 
         # Create ChatPromptTemplate

@@ -38,8 +38,9 @@ async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     
     if not query:
-        await update.message.reply_text("📰 Usage: /news your topic")
-        return
+        #await update.message.reply_text("📰 Usage: /news your topic")
+        query = "UK Headlines"
+        #return
     
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     

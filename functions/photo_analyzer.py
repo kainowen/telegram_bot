@@ -39,11 +39,9 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
 
         #Get original size for logging
         original_size = image_data.getbuffer().nbytes / 1024 #kb
-        #print(f"Original image size: {original_size:.1f} KB, dimentions: {img.size}")
 
          # Resize to a reasonable dimension (max 768px on longest side)
-        # This balances quality and performance for plant identification
-        max_dimension = 768
+        max_dimension = 1920
         if max(img.size) > max_dimension:
             ratio = max_dimension / max(img.size)
             new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
@@ -70,7 +68,7 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
         llm = ChatOllama(
             base_url=OLLAMA_BASE_URL,  # Your existing config
             model=TARGET_MODEL,
-            temperature=0.7,
+            temperature=0.3,
             num_predict=512,
             reasoning=False
         )
