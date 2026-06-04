@@ -1,10 +1,10 @@
 from langchain_community.tools import DuckDuckGoSearchRun
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from telegram import Update
 from telegram.ext import ContextTypes
 
 # Create the search tool
-search = DuckDuckGoSearchRun()
+search = DDGS()
 
 # Use it in your bot
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -20,7 +20,11 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # Perform search - returns formatted text results
-        results = search.invoke(query)
+        results = search.text(
+            query=query,
+            region="uk-en",
+            max_results=5
+            )
         
         # Telegram has a 4096 character limit per message
         if len(results) > 4000:

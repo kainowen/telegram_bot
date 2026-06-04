@@ -17,16 +17,21 @@ async def code(update, context, OLLAMA_BASE_URL, TARGET_MODEL):
                     Output ONLY valid Python code.\
                     Do NOT use Markdown formatting (no ```python blocks).\
                     Do NOT provide explanations, greetings, or commentary.\
-                    Ensure the code is self-contained and runnable."
+                    Ensure the code is self-contained and runnable. \
+                    Your character limit is 128k tokens. KEep responses within this limit. \
+                    Always observe PEP8 coding standards"
 
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        
+    # Send a processing message since this takes time
+    processing_msg = await update.message.reply_text("🧠 Thinking...")   
+
     try:
        # Initialize LLM
         llm = ChatOllama(
             base_url=OLLAMA_BASE_URL,
             model=TARGET_MODEL,
             temperature=0.7,
+            reasoning=True
         )
         
         
@@ -54,7 +59,8 @@ async def code(update, context, OLLAMA_BASE_URL, TARGET_MODEL):
         if os.path.exists(tool_path):
             with open(tool_path, "w") as file:
                 file.write(bot_reply)
-
+        
+        await processing_msg.delete()
         await update.message.reply_text(f"Code succesfuly writen to /temp_utilities/tool.py")   # Push message to Telegram
 
 

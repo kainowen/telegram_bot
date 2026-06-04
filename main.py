@@ -1,9 +1,11 @@
 print("Importing Packages...")
 import os
+import re
 from dotenv import load_dotenv
 import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+import telegramify_markdown
 from pathlib import Path
 
 #Custom imports
@@ -160,10 +162,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = str(update.effective_user.id)
     chat_id = update.effective_chat.id
-    print(chat_id)
-    print(user_id)
-    print(update.effective_sender.id)
-    print(update.effective_message.id)
 
 
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
@@ -176,7 +174,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             base_url=OLLAMA_BASE_URL,
             model=TARGET_MODEL,
             temperature=0.7,
-            reasoning=False
+            reasoning=True
         )
 
         # Create ChatPromptTemplate
@@ -227,7 +225,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await processing_msg.delete()
-        await update.message.reply_text(bot_reply)
+        await update.message.reply_text(telegramify_markdown.markdownify(str(bot_reply)), parse_mode="MarkdownV2")
         
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
