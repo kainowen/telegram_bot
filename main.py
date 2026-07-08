@@ -9,7 +9,7 @@ import telegramify_markdown
 from pathlib import Path
 
 #Custom imports
-from functions import toggleSystemPrompt, web_search, projectMemory,generate_code,rag_recall,photo_analyzer,process_docs
+from functions import toggleSystemPrompt, web_search, projectMemory,generate_code,rag_recall,photo_analyzer,process_docs,trim_response,reminders
 
 # LangChain Imports
 from langchain_ollama import ChatOllama
@@ -51,6 +51,8 @@ user_memories = {} #Creates container for conversation memory
 # ================= RAG SETUP =================
 
 rag_system = rag_recall.DocumentQnA(CHROMA_DB_PATH,OLLAMA_BASE_URL,EMBEDDING_MODEL,TARGET_MODEL) #Load class called for RAG
+reminders_system = reminders.ReminderHelper()
+get_reminders_System = reminders.GetReminders()
 
 # ================= TELEGRAM BOT HANDLERS =================
 
@@ -69,7 +71,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Commands:\n"
         "/start - Reset our conversation\n"
         "/clear - Clear conversation memory\n"
-        "/askdocs <question> - Query my documentation\n"
+        "/ask - <question> - Query my documentation\n"
         "/status - Show current status"
         "/search <question> - Search the internet for an answer\n"
         "/news - Search the internet for relevant news"
@@ -144,6 +146,21 @@ async def telldocs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("Archiving File")
     os.rename(file_save_path,archive_path)  #Move file to .archive
 
+async def remind(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("Starting remind...")
+    reminder_return = reminders_system.add_reminder(update.message.text)
+    await update.message.reply_text(reminder_return)
+    return reminder_return
+
+async def get_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("Starting remind...")
+    new_reminders = get_reminders_System.get_month()
+
+    await update.message.reply_text(telegramify_markdown.markdownify(str(new_reminders)), parse_mode="MarkdownV2")
+    return new_reminders
+
+
+
 async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     #Redefines the system Prompt
     global SYSTEM_PROMPT
@@ -186,7 +203,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         #Initialise the Trimmer to reduce the prompt length
         trimmer = trim_messages(
-            max_tokens=3000,
+            max_tokens=4000,
             strategy="last",
             token_counter=llm,
             include_system=True,
@@ -224,8 +241,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             config={"configurable": {"session_id": user_id}}
         )
         
+        message_Splitter = trim_response.trim_response() # Splits content into a list of sections starting with ### (Markdown H3)
+
         await processing_msg.delete()
-        await update.message.reply_text(telegramify_markdown.markdownify(str(bot_reply)), parse_mode="MarkdownV2")
+        bot_reply = message_Splitter.trim(response=bot_reply)
+        
+
+        if isinstance(bot_reply, list):
+            print("Content is list")
+            for message in bot_reply:
+                if len(message) > 4000:
+                    print(message)
+                    message = "section exceeded 4k characters. Check terminal for full message: \n" + message[0:3900]
+                await update.message.reply_text(telegramify_markdown.markdownify(str(message)), parse_mode="MarkdownV2")
+
+        elif isinstance(bot_reply, str):
+            print("Content is string")
+            await update.message.reply_text(telegramify_markdown.markdownify(str(bot_reply)), parse_mode="MarkdownV2")
+        else:
+            # --- Default Action (If it's neither list nor string) ---
+            print("⚠️ Condition Met: The data is neither a List nor a String.")
+
         
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
@@ -242,12 +278,14 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("clear", clear_command))
     app.add_handler(CommandHandler("status", status_command))
-    app.add_handler(CommandHandler("askdocs", askdocs_command))
+    app.add_handler(CommandHandler("ask", askdocs_command))
     app.add_handler(CommandHandler("telldocs", telldocs_command))
     app.add_handler(CommandHandler("search", web_search.search_command))
     app.add_handler(CommandHandler("news", web_search.news_command))
     app.add_handler(CommandHandler("code", code))
     app.add_handler(CommandHandler("toggle", toggle))
+    app.add_handler(CommandHandler("reminder", remind))
+    app.add_handler(CommandHandler("remindme", get_reminders))
     app.add_handler(MessageHandler(filters.PHOTO, analyse_photo))
     app.add_handler(MessageHandler(filters.ATTACHMENT, telldocs_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

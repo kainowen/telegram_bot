@@ -54,6 +54,7 @@ class DocumentQnA:
                 base_url=str(self.OLLAMA_BASE_URL),
                 model=str(self.TARGET_MODEL),
                 temperature=0.5,
+                reasoning=True
             )
 
             docs = self.retriever.invoke(question)

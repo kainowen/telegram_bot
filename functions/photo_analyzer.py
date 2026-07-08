@@ -20,7 +20,7 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
     photo = update.message.photo[-1]
     
     # Get user's question (caption becomes the text prompt)
-    user_question = update.message.caption or "What plant is this and how do I care for it?"
+    user_question = update.message.caption or "Analyse this photo..."
     
     await context.bot.send_chat_action(chat_id=chat_id, action="typing")
     
@@ -41,7 +41,7 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
         original_size = image_data.getbuffer().nbytes / 1024 #kb
 
          # Resize to a reasonable dimension (max 768px on longest side)
-        max_dimension = 1920
+        max_dimension = 720
         if max(img.size) > max_dimension:
             ratio = max_dimension / max(img.size)
             new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
@@ -57,11 +57,12 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
         resized_data.seek(0)
         
         new_size_kb = resized_data.getbuffer().nbytes / 1024
-        #print(f"Resized image size: {new_size_kb:.1f} KB, dimensions: {img.size}")
+        print(f"Resized image size: {new_size_kb:.1f} KB, dimensions: {img.size}")
 
         # Convert to base64 and create the data URL
         base64_image = base64.b64encode(resized_data.getvalue()).decode('utf-8')
         image_url = f"data:image/jpeg;base64,{base64_image}"
+
 
         #
         # Initialize the LLM with Gemma 4
@@ -86,14 +87,15 @@ async def analyze_image(update: Update, context: ContextTypes.DEFAULT_TYPE, OLLA
         message.append(HumanMessage(content=[
             {"type": "text", "text": f"SYSTEM PROMPT: {SYSTEM_PROMPT}"},
             {"type": "text", "text": f"User question: {user_question}"},
-            {"type": "image_url", "image_url": image_url}
+            {"type": "image_url", "image_url":image_url}
         ]))
+
         # Invoke the model
         response = await asyncio.to_thread(llm.invoke, message)
         
         # Delete processing message and send the response
         await processing_msg.delete()
-        await update.message.reply_text(f"🌿 Plant Analysis:\n\n{response.content}")
+        await update.message.reply_text(f"📷 Photo Analysis:\n\n{response.content}")
         
         # Save a text-only representation to the SQL store
         memoryOBJ =projectMemory.SQLBackedSummaryMemory(user_id, DATABASE_URL,personality=PERSONALITY,llm=llm)
