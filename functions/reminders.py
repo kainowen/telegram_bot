@@ -6,12 +6,9 @@ import os
 from pathlib import Path
 
 db_path = str(Path(__file__).resolve().parent.parent / "data" / "reminders.db")
-print(db_path)
 class ReminderHelper:
     def __init__(self, db_path=db_path):
-            print("initialising")
             self.db_path = db_path
-            print(self.db_path)
             self._init_database()
     
     def _init_database(self):
@@ -36,9 +33,9 @@ class ReminderHelper:
         """
         Parse natural language input into structured data.
         Supports formats like:
-        - "Rozian, wife, 1991/12/28, birthday, yearly"
-        - "Remind me about Rozian's birthday on 1991/12/28 (wife, yearly)"
-        - "birthday for Rozian (wife) on 1991/12/28 yearly"
+        - "Name, wife, yyyy/MM/dd, birthday, yearly"
+        - "Remind me about Name's birthday on yyyy/MM/dd (wife, yearly)"
+        - "birthday for Name (wife) on yyyy/MM/dd yearly"
         """
         # Remove leading command
         text = re.sub(r'^/reminder\s+', '', text, flags=re.IGNORECASE)

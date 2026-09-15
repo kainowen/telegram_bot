@@ -66,6 +66,8 @@ class SQLBackedSummaryMemory:
     def save_context(self, inputs, outputs):
         print("Starting: save_context")
         """Save the conversation context to both memory and SQL."""
+        print(f"DEBUG: Inputs type: {type(inputs)}, value: {inputs}")
+        print(f"DEBUG: Outputs type: {type(outputs)}, value: {outputs}")
         self.memory.save_context(inputs, outputs)
     
     def clear(self):

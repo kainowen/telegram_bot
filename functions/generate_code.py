@@ -56,9 +56,8 @@ async def code(update, context, OLLAMA_BASE_URL, TARGET_MODEL):
 
         #Write code to temp tool.py file
         tool_path = "temp_utilities/tool.py"
-        if os.path.exists(tool_path):
-            with open(tool_path, "w") as file:
-                file.write(bot_reply)
+        with open(tool_path, "w") as file:
+            file.write(bot_reply)
         
         await processing_msg.delete()
         await update.message.reply_text(f"Code succesfuly writen to /temp_utilities/tool.py")   # Push message to Telegram

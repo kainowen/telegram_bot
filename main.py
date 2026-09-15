@@ -1,6 +1,6 @@
 print("Importing Packages...")
 import os
-import re
+#import re
 from dotenv import load_dotenv
 import datetime
 from telegram import Update
@@ -9,7 +9,7 @@ import telegramify_markdown
 from pathlib import Path
 
 #Custom imports
-from functions import toggleSystemPrompt, web_search, projectMemory,generate_code,rag_recall,photo_analyzer,process_docs,trim_response,reminders
+from functions import toggleSystemPrompt, web_search, projectMemory,generate_code,rag_recall,photo_analyzer,process_docs,trim_response,reminders,deep_research
 
 # LangChain Imports
 from langchain_ollama import ChatOllama
@@ -42,7 +42,7 @@ EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL')
 
 # Load system prompt from file or use default
 togglePrompt = toggleSystemPrompt.ToggleSystemPropmt(PERSONALITIES=PERSONALITIES)
-SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES)
+SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES, override="")
 SYSTEM_PROMPT = f"{SYSTEM_PROMPT} \n Current Date: {datetime.datetime.now()}"
 SYSTEM_PERSONALITY = togglePrompt.getName()
 user_memories = {} #Creates container for conversation memory
@@ -159,12 +159,16 @@ async def get_reminders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(telegramify_markdown.markdownify(str(new_reminders)), parse_mode="MarkdownV2")
     return new_reminders
 
-
+async def research(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = " ".join(context.args)
+    research_agent = deep_research.DeepResearch()
+    result = research_agent.research(query)
+    await update.message.reply_text(result.response)
 
 async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     #Redefines the system Prompt
     global SYSTEM_PROMPT
-    SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES)
+    SYSTEM_PROMPT = togglePrompt(PERSONALITIES=PERSONALITIES,override=str(" ".join(context.args)))
     SYSTEM_PROMPT = f"{SYSTEM_PROMPT} \n Current Date: {datetime.datetime.now()}"
     global SYSTEM_PERSONALITY
     SYSTEM_PERSONALITY = togglePrompt.getName()
@@ -283,20 +287,17 @@ def main():
     app.add_handler(CommandHandler("search", web_search.search_command))
     app.add_handler(CommandHandler("news", web_search.news_command))
     app.add_handler(CommandHandler("code", code))
-    app.add_handler(CommandHandler("toggle", toggle))
+    app.add_handler(CommandHandler("profile", toggle))
     app.add_handler(CommandHandler("reminder", remind))
     app.add_handler(CommandHandler("remindme", get_reminders))
+    app.add_handler(CommandHandler("research", research))
     app.add_handler(MessageHandler(filters.PHOTO, analyse_photo))
     app.add_handler(MessageHandler(filters.ATTACHMENT, telldocs_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     
     print("🤖 Bot is starting...")
-    print(f"   Model: {TARGET_MODEL}")
-    print(f"   Ollama URL: {OLLAMA_BASE_URL}")
-    print(f"   SQL Database: {DATABASE_URL}")
-    print(f"   RAG Available: {rag_system.is_available}")
-    print("\n🤖 Ready!")
+    print("🤖 Ready!")
     
     app.run_polling()
 

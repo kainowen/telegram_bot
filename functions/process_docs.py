@@ -5,9 +5,16 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_ollama import OllamaEmbeddings
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
+
+
+
+
 
 DATABASE_URL = os.getenv('DATABASE_URL')
-
+print(os.getenv('DOCS_DIRECTORY'))
 # RAG Configuration
 DOCS_DIRECTORY = str(Path(__file__).resolve().parent.parent / os.getenv('DOCS_DIRECTORY'))
 CHROMA_DB_PATH = str(Path(__file__).resolve().parent.parent / os.getenv('CHROMA_DB_PATH'))

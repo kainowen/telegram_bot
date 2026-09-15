@@ -16,27 +16,37 @@ class ToggleSystemPropmt:
                personalityList.append(entry.name)
         self.personalities = personalityList
         self.index = len(self.personalities)
-  
-    SYSTEM_PROMPT = ""
+        self.PERSONALITY = ""
+        self.SYSTEM_PROMPT = ""
 
-    def __call__(self,PERSONALITIES):
+    def __call__(self,PERSONALITIES,override: str):
         print("Starting: ToggleSystemPropmt")
-        personalityCount = len(self.personalities)
-        if int(self.index) >= int(personalityCount) - 1:
-            self.index = 0
-        else: 
-            self.index += 1
         
-        PERSONALITY = str(Path(__file__).resolve().parent.parent) + PERSONALITIES +  self.personalities[self.index]
+        lowercased_list = [item.lower().replace(".txt", "") for item in self.personalities] # Converts personality list to lower case for matching when toggling specific profiles
 
-        if not os.path.exists(PERSONALITY):
-            SYSTEM_PROMPT =  """You are MARX, a helpful, friendly, and casual AI assistant. 
+        if override != "":
+            if override.lower() in lowercased_list:
+                self.index = lowercased_list.index(override.lower())
+            else:
+                print("Personality name not recognised")
+            
+        else:
+            personalityCount = len(self.personalities)
+            if int(self.index) >= int(personalityCount) - 1:
+                self.index = 0
+            else: 
+                self.index += 1
+            
+        self.PERSONALITY = str(Path(__file__).resolve().parent.parent) + PERSONALITIES +  self.personalities[self.index]
+
+        if not os.path.exists(self.PERSONALITY):
+            self.SYSTEM_PROMPT =  """You are MARX, a helpful, friendly, and casual AI assistant. 
                         Keep answers brief and easy to understand. Avoid unnecessary fluff. 
                         Let me know if you don't know the answer to something. Don't make things up."""
         else:
-            with open(PERSONALITY, 'r') as f:
-                SYSTEM_PROMPT=  f.read()
-        return(SYSTEM_PROMPT)        
+            with open(self.PERSONALITY, 'r') as f:
+                self.SYSTEM_PROMPT=  f.read()
+        return(self.SYSTEM_PROMPT)        
     
     def getName(self):
         print("Starting: ToggleSystemPropmt.getName")

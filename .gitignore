@@ -99,3 +99,4 @@ idea/
 /test/temp_utilities
 /temp_utilities/*
 /docs/*
+/chroma_db/chroma.sqlite3
